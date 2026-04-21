@@ -1,0 +1,181 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap");
+
+:root {
+  --bg-main: radial-gradient(circle at top, #f8fff2 0%, #f0f6ff 45%, #edf2ff 100%);
+  --panel-bg: rgba(255, 255, 255, 0.84);
+  --panel-border: rgba(18, 50, 76, 0.13);
+  --text-main: #12243a;
+  --text-muted: #4a5f74;
+  --accent: #0a7a5b;
+  --accent-hover: #075f46;
+  --danger: #b72323;
+  --danger-hover: #961818;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+.page {
+  width: min(1180px, 95vw);
+  margin: 3rem auto;
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  padding: 1.25rem;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 16px 32px rgba(18, 36, 58, 0.1);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0.3rem 0 0;
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  font-weight: 700;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+label {
+  display: grid;
+  gap: 0.36rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+input {
+  border: 1px solid rgba(18, 36, 58, 0.2);
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.62rem 0.72rem;
+  font: inherit;
+}
+
+input:focus {
+  outline: none;
+  border-color: rgba(10, 122, 91, 0.7);
+  box-shadow: 0 0 0 3px rgba(10, 122, 91, 0.13);
+}
+
+.button {
+  border: none;
+  border-radius: 11px;
+  padding: 0.68rem 1.05rem;
+  font-weight: 600;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  color: #fff;
+  background: linear-gradient(120deg, #0a7a5b, #0c8b66);
+  cursor: pointer;
+}
+
+.button:hover {
+  background: linear-gradient(120deg, var(--accent-hover), #0b785a);
+}
+
+.status {
+  margin: 0.5rem 0 0.75rem;
+  color: var(--text-muted);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+thead th {
+  text-align: left;
+  font-weight: 700;
+  color: #1f3a53;
+  background: rgba(203, 221, 244, 0.32);
+  padding: 0.75rem 0.55rem;
+}
+
+tbody td {
+  border-top: 1px solid rgba(18, 36, 58, 0.08);
+  padding: 0.72rem 0.55rem;
+  vertical-align: top;
+}
+
+.path-cell {
+  max-width: 400px;
+  word-break: break-all;
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 0.87rem;
+}
+
+.close-button {
+  border: none;
+  border-radius: 8px;
+  padding: 0.44rem 0.7rem;
+  color: #fff;
+  background: linear-gradient(120deg, #b72323, #c53030);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.close-button:hover {
+  background: linear-gradient(120deg, var(--danger-hover), #b91d1d);
+}
+
+.empty-cell {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 1.4rem;
+}
+
+@media (max-width: 720px) {
+  .page {
+    margin: 1rem auto;
+  }
+  .panel {
+    padding: 1rem;
+    border-radius: 12px;
+  }
+  .panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    container_name: samba-monitor-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      SSH_HOST: ${SSH_HOST:-remote-linux-host}
+      SSH_PORT: ${SSH_PORT:-22}
+      SSH_USER: ${SSH_USER:-samba-user}
+      SSH_PASSWORD: ${SSH_PASSWORD:-}
+      SSH_KEY: ${SSH_KEY:-}
+      SSH_TIMEOUT_SECONDS: ${SSH_TIMEOUT_SECONDS:-10}
+      APP_USERNAME: ${APP_USERNAME:-admin}
+      APP_PASSWORD: ${APP_PASSWORD:-change_me}
+      APP_ROOT_URI: ${APP_ROOT_URI:-}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-7}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}

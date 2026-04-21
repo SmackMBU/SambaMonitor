@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="app-root-uri" content="__APP_ROOT_URI__" />
+    <title>Samba Monitor</title>
+    <link rel="stylesheet" href="__APP_ROOT_URI__/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <header class="panel-header">
+          <div>
+            <p class="eyebrow">SMB Monitoring</p>
+            <h1>Открытые файлы Samba</h1>
+          </div>
+          <button id="refreshButton" class="button">Обновить</button>
+        </header>
+
+        <div class="controls">
+          <label>
+            Поиск
+            <input
+              id="searchInput"
+              type="text"
+              placeholder="Имя файла или путь"
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            Расширение
+            <input id="extensionInput" type="text" placeholder=".log, txt, pdf" autocomplete="off" />
+          </label>
+        </div>
+
+        <p id="status" class="status">Загрузка...</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Имя файла</th>
+                <th>Путь</th>
+                <th>Пользователь</th>
+                <th>PID</th>
+                <th>Открыт</th>
+                <th>Действие</th>
+              </tr>
+            </thead>
+            <tbody id="filesBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <template id="emptyRowTemplate">
+      <tr>
+        <td colspan="6" class="empty-cell">Открытые файлы не найдены</td>
+      </tr>
+    </template>
+
+    <script src="__APP_ROOT_URI__/static/script.js"></script>
+  </body>
+</html>
