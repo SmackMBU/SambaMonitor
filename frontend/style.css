@@ -286,6 +286,21 @@ tbody tr:hover {
   word-break: break-word;
 }
 
+.file-name {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.file-dir {
+  margin-top: 0.18rem;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .close-button {
   border: none;
   border-radius: 8px;
