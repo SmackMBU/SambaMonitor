@@ -5,16 +5,24 @@ const filesBody = document.getElementById("filesBody");
 const statusLine = document.getElementById("status");
 const emptyRowTemplate = document.getElementById("emptyRowTemplate");
 const rootUriMeta = document.querySelector('meta[name="app-root-uri"]');
+const pagination = document.getElementById("pagination");
+const pageInfo = document.getElementById("pageInfo");
+const prevPageButton = document.getElementById("prevPageButton");
+const nextPageButton = document.getElementById("nextPageButton");
+
+const PAGE_SIZE = 40;
+const MAX_MASKS = 32;
 
 let debounceTimer = null;
 let activeFetchController = null;
-let renderJobId = 0;
 
 const APP_ROOT_URI = normalizeRootUri(rootUriMeta?.content ?? "");
+const wildcardRegexCache = new Map();
 const state = {
   allFiles: [],
   filteredFiles: [],
   syncedAt: null,
+  currentPage: 1,
 };
 
 function normalizeRootUri(value) {
@@ -62,7 +70,8 @@ function splitMasks(value) {
   return normalized
     .split(/[;,]/)
     .map((part) => part.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, MAX_MASKS);
 }
 
 function containsWildcard(mask) {
@@ -73,7 +82,11 @@ function escapeRegexFragment(value) {
   return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
 }
 
-function wildcardToRegex(mask) {
+function getWildcardRegex(mask) {
+  if (wildcardRegexCache.has(mask)) {
+    return wildcardRegexCache.get(mask);
+  }
+
   let regex = "^";
   for (let i = 0; i < mask.length; i += 1) {
     const char = mask[i];
@@ -116,7 +129,14 @@ function wildcardToRegex(mask) {
     regex += escapeRegexFragment(char);
   }
   regex += "$";
-  return new RegExp(regex, "i");
+
+  const compiled = new RegExp(regex, "i");
+  wildcardRegexCache.set(mask, compiled);
+  if (wildcardRegexCache.size > 512) {
+    const first = wildcardRegexCache.keys().next().value;
+    wildcardRegexCache.delete(first);
+  }
+  return compiled;
 }
 
 function normalizeExtensionMask(mask) {
@@ -139,9 +159,7 @@ function createSearchMatcher(rawValue) {
     return () => true;
   }
 
-  const wildcardRegexList = masks
-    .filter(containsWildcard)
-    .map(wildcardToRegex);
+  const wildcardRegexList = masks.filter(containsWildcard).map(getWildcardRegex);
   const loweredTerms = masks
     .filter((mask) => !containsWildcard(mask))
     .map((mask) => mask.toLowerCase());
@@ -164,7 +182,7 @@ function createExtensionMatcher(rawValue) {
     return () => true;
   }
 
-  const regexList = masks.map(wildcardToRegex);
+  const regexList = masks.map(getWildcardRegex);
   return (file) => regexList.some((regex) => regex.test(file.filename));
 }
 
@@ -172,92 +190,101 @@ function prepareFiles(rawFiles) {
   return rawFiles.map((rawFile) => {
     const filename = String(rawFile?.filename ?? "");
     const filepath = String(rawFile?.filepath ?? "");
+    const user = String(rawFile?.user ?? "unknown");
+    const pid = String(rawFile?.pid ?? "");
     return {
       ...rawFile,
       filename,
       filepath,
-      user: String(rawFile?.user ?? "unknown"),
-      _searchText: `${filename} ${filepath}`.toLowerCase(),
+      user,
+      pid,
+      _searchText: `${filename} ${filepath} ${user} ${pid}`.toLowerCase(),
     };
   });
 }
 
-function buildStatusText() {
-  const total = state.allFiles.length;
-  const shown = state.filteredFiles.length;
-  const syncText = state.syncedAt
-    ? ` Обновлено: ${state.syncedAt.toLocaleTimeString("ru-RU")}.`
-    : "";
-  return `Показано ${shown} из ${total} открытых файлов.${syncText}`;
+function buildStatusText({ totalAll, totalFiltered, from, to }) {
+  const rangeText = totalFiltered > 0 ? `${from}-${to}` : "0";
+  const syncText = state.syncedAt ? ` Обновлено: ${state.syncedAt.toLocaleTimeString("ru-RU")}.` : "";
+  return `Показано ${rangeText} из ${totalFiltered} (всего ${totalAll}) открытых файлов.${syncText}`;
 }
 
 function buildRow(file) {
   const openedAt = file.opened_at ?? "-";
   return `
     <tr>
-      <td class="cell-filename">${escapeHtml(file.filename)}</td>
-      <td class="path-cell">
-        <code class="path-value" title="${escapeHtml(file.filepath)}">${escapeHtml(file.filepath)}</code>
-      </td>
-      <td>${escapeHtml(file.user)}</td>
-      <td>${escapeHtml(file.pid)}</td>
-      <td>${escapeHtml(openedAt)}</td>
-      <td>
-        <button class="close-button" data-pid="${escapeHtml(file.pid)}">Закрыть</button>
+      <td class="cell-filename" title="${escapeHtml(file.filepath)}">${escapeHtml(file.filename)}</td>
+      <td class="cell-user">${escapeHtml(file.user)}</td>
+      <td class="cell-pid">${escapeHtml(file.pid)}</td>
+      <td class="cell-opened">${escapeHtml(openedAt)}</td>
+      <td class="cell-action">
+        <button class="close-button" data-pid="${escapeHtml(file.pid)}" type="button">Закрыть</button>
       </td>
     </tr>
   `;
 }
 
 function renderFiles(files) {
-  const localRenderJobId = ++renderJobId;
-  filesBody.innerHTML = "";
-
   if (!files.length) {
+    filesBody.innerHTML = "";
     filesBody.append(emptyRowTemplate.content.cloneNode(true));
     return;
   }
-
-  const chunkSize = files.length > 2000 ? 120 : 320;
-  let index = 0;
-
-  function renderChunk() {
-    if (localRenderJobId !== renderJobId) {
-      return;
-    }
-
-    const end = Math.min(index + chunkSize, files.length);
-    let chunkHtml = "";
-    for (; index < end; index += 1) {
-      chunkHtml += buildRow(files[index]);
-    }
-    filesBody.insertAdjacentHTML("beforeend", chunkHtml);
-
-    if (index < files.length) {
-      window.requestAnimationFrame(renderChunk);
-    }
-  }
-
-  window.requestAnimationFrame(renderChunk);
+  filesBody.innerHTML = files.map(buildRow).join("");
 }
 
-function applyFiltersAndRender() {
+function updatePagination(totalPages, totalFiltered) {
+  if (totalFiltered <= PAGE_SIZE || totalPages <= 1) {
+    pagination.hidden = true;
+    return;
+  }
+
+  pagination.hidden = false;
+  pageInfo.textContent = `Страница ${state.currentPage} из ${totalPages}`;
+  prevPageButton.disabled = state.currentPage <= 1;
+  nextPageButton.disabled = state.currentPage >= totalPages;
+}
+
+function renderCurrentPage() {
+  const totalAll = state.allFiles.length;
+  const totalFiltered = state.filteredFiles.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
+
+  state.currentPage = Math.min(Math.max(1, state.currentPage), totalPages);
+
+  const startIndex = totalFiltered === 0 ? 0 : (state.currentPage - 1) * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalFiltered);
+  const pageItems = state.filteredFiles.slice(startIndex, endIndex);
+
+  renderFiles(pageItems);
+  updatePagination(totalPages, totalFiltered);
+  setStatus(
+    buildStatusText({
+      totalAll,
+      totalFiltered,
+      from: totalFiltered === 0 ? 0 : startIndex + 1,
+      to: endIndex,
+    })
+  );
+}
+
+function applyFilters({ resetPage = true } = {}) {
   const searchMatcher = createSearchMatcher(searchInput.value);
   const extensionMatcher = createExtensionMatcher(extensionInput.value);
 
-  state.filteredFiles = state.allFiles.filter(
-    (file) => searchMatcher(file) && extensionMatcher(file)
-  );
+  state.filteredFiles = state.allFiles.filter((file) => searchMatcher(file) && extensionMatcher(file));
+  if (resetPage) {
+    state.currentPage = 1;
+  }
 
-  renderFiles(state.filteredFiles);
-  setStatus(buildStatusText());
+  renderCurrentPage();
 }
 
 function scheduleLiveFilter() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    applyFiltersAndRender();
-  }, 120);
+    applyFilters({ resetPage: true });
+  }, 160);
 }
 
 async function refreshFiles({ forceRefresh = false } = {}) {
@@ -280,6 +307,7 @@ async function refreshFiles({ forceRefresh = false } = {}) {
       signal: controller.signal,
       cache: "no-store",
     });
+
     const payload = await response.json();
     if (!response.ok) {
       throw new Error(payload.message || payload.detail || "Не удалось загрузить файлы");
@@ -288,7 +316,7 @@ async function refreshFiles({ forceRefresh = false } = {}) {
     const files = Array.isArray(payload.files) ? payload.files : [];
     state.allFiles = prepareFiles(files);
     state.syncedAt = new Date();
-    applyFiltersAndRender();
+    applyFilters({ resetPage: true });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       return;
@@ -296,7 +324,9 @@ async function refreshFiles({ forceRefresh = false } = {}) {
 
     state.allFiles = [];
     state.filteredFiles = [];
+    state.currentPage = 1;
     renderFiles([]);
+    pagination.hidden = true;
     setStatus(error.message || "Не удалось загрузить файлы", true);
   } finally {
     if (activeFetchController === controller) {
@@ -338,6 +368,23 @@ async function closeConnection(pid, triggerButton) {
 searchInput.addEventListener("input", scheduleLiveFilter);
 extensionInput.addEventListener("input", scheduleLiveFilter);
 refreshButton.addEventListener("click", () => refreshFiles({ forceRefresh: true }));
+
+prevPageButton.addEventListener("click", () => {
+  if (state.currentPage <= 1) {
+    return;
+  }
+  state.currentPage -= 1;
+  renderCurrentPage();
+});
+
+nextPageButton.addEventListener("click", () => {
+  const totalPages = Math.max(1, Math.ceil(state.filteredFiles.length / PAGE_SIZE));
+  if (state.currentPage >= totalPages) {
+    return;
+  }
+  state.currentPage += 1;
+  renderCurrentPage();
+});
 
 filesBody.addEventListener("click", (event) => {
   const target = event.target;

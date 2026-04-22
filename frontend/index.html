@@ -15,10 +15,10 @@
             <p class="eyebrow">SMB Monitoring</p>
             <h1>Открытые файлы Samba</h1>
             <p class="subtitle">
-              Просмотр активных файлов на сервере и закрытие зависших клиентских подключений.
+              Быстрый просмотр открытых файлов и закрытие зависших клиентских подключений.
             </p>
           </div>
-          <button id="refreshButton" class="button">Обновить данные</button>
+          <button id="refreshButton" class="button" type="button">Обновить данные</button>
         </header>
 
         <div class="controls">
@@ -31,8 +31,7 @@
               autocomplete="off"
             />
             <small class="hint">
-              Поддерживаются маски: <code>*</code>, <code>?</code>, <code>[abc]</code>,
-              <code>[!abc]</code>
+              Поддерживаются маски: <code>*</code>, <code>?</code>, <code>[abc]</code>, <code>[!abc]</code>
             </small>
           </label>
           <label class="control">
@@ -43,22 +42,27 @@
               placeholder=".log, txt, *.pdf, *.doc?;*.xlsx"
               autocomplete="off"
             />
-            <small class="hint">Можно указывать несколько масок через запятую или <code>;</code>.</small>
+            <small class="hint">Несколько масок можно указывать через запятую или <code>;</code>.</small>
           </label>
         </div>
 
         <p id="status" class="status">Загрузка...</p>
 
+        <div id="pagination" class="pagination" hidden>
+          <button id="prevPageButton" class="page-button" type="button">Назад</button>
+          <span id="pageInfo" class="page-info"></span>
+          <button id="nextPageButton" class="page-button" type="button">Вперёд</button>
+        </div>
+
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Имя файла</th>
-                <th>Путь на сервере</th>
-                <th>Пользователь</th>
-                <th>PID</th>
-                <th>Открыт</th>
-                <th>Действие</th>
+                <th class="col-name">Имя файла</th>
+                <th class="col-user">Пользователь</th>
+                <th class="col-pid">PID</th>
+                <th class="col-opened">Открыт</th>
+                <th class="col-action">Действие</th>
               </tr>
             </thead>
             <tbody id="filesBody"></tbody>
@@ -69,7 +73,7 @@
 
     <template id="emptyRowTemplate">
       <tr>
-        <td colspan="6" class="empty-cell">Открытые файлы не найдены</td>
+        <td colspan="5" class="empty-cell">Открытые файлы не найдены</td>
       </tr>
     </template>
 
