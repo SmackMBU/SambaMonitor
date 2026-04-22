@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import re
 import hmac
 import logging
 import os
 import time
+from fnmatch import translate as fnmatch_translate
+from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -34,6 +37,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 INDEX_TEMPLATE_PATH = FRONTEND_DIR / "index.html"
 CACHE_TTL_SECONDS = max(1, int(os.getenv("CACHE_TTL_SECONDS", "7")))
+WILDCARD_META_CHARS = set("*?[]")
 
 
 def _require_env(name: str) -> str:
@@ -237,24 +241,73 @@ def _filter_entries(
     search: str | None,
     extension: str | None,
 ) -> list[OpenFileEntry]:
-    search_value = (search or "").strip().lower()
-    extension_value = (extension or "").strip().lower()
-    if extension_value and not extension_value.startswith("."):
-        extension_value = f".{extension_value}"
+    search_value = (search or "").strip()
+    extension_masks = _split_masks(extension)
+    normalized_extension_masks = [_normalize_extension_mask(mask) for mask in extension_masks]
+    extension_patterns = [
+        _compile_wildcard_pattern(mask)
+        for mask in normalized_extension_masks
+        if mask
+    ]
+
+    search_masks = _split_masks(search)
+    search_wildcard_patterns = [
+        _compile_wildcard_pattern(mask)
+        for mask in search_masks
+        if _contains_wildcards(mask)
+    ]
+    search_substrings = [mask.casefold() for mask in search_masks if not _contains_wildcards(mask)]
+
+    if not search_value and not extension_patterns:
+        return list(entries)
 
     filtered: list[OpenFileEntry] = []
     for entry in entries:
         filename = entry["filename"]
         filepath = entry["filepath"]
 
-        if search_value:
-            searchable = f"{filename} {filepath}".lower()
-            if search_value not in searchable:
+        if search_value and (search_wildcard_patterns or search_substrings):
+            searchable = f"{filename} {filepath}".casefold()
+            wildcard_match = any(
+                pattern.fullmatch(filename) or pattern.fullmatch(filepath)
+                for pattern in search_wildcard_patterns
+            )
+            substring_match = any(term in searchable for term in search_substrings)
+            if not wildcard_match and not substring_match:
                 continue
 
-        if extension_value and not filename.lower().endswith(extension_value):
-            continue
+        if extension_patterns:
+            if not any(pattern.fullmatch(filename) for pattern in extension_patterns):
+                continue
 
         filtered.append(entry)
     return filtered
 
+
+def _split_masks(value: str | None) -> list[str]:
+    if not value:
+        return []
+    normalized = value.strip()
+    if not normalized:
+        return []
+    return [part.strip() for part in re.split(r"[;,]", normalized) if part.strip()]
+
+
+def _contains_wildcards(value: str) -> bool:
+    return any(char in value for char in WILDCARD_META_CHARS)
+
+
+def _normalize_extension_mask(mask: str) -> str:
+    normalized = mask.strip()
+    if not normalized:
+        return ""
+    if _contains_wildcards(normalized):
+        return normalized
+    if normalized.startswith("."):
+        return f"*{normalized}"
+    return f"*.{normalized}"
+
+
+@lru_cache(maxsize=256)
+def _compile_wildcard_pattern(mask: str) -> re.Pattern[str]:
+    return re.compile(fnmatch_translate(mask), flags=re.IGNORECASE)

@@ -11,26 +11,39 @@
     <main class="page">
       <section class="panel">
         <header class="panel-header">
-          <div>
+          <div class="title-block">
             <p class="eyebrow">SMB Monitoring</p>
             <h1>Открытые файлы Samba</h1>
+            <p class="subtitle">
+              Просмотр активных файлов на сервере и закрытие зависших клиентских подключений.
+            </p>
           </div>
-          <button id="refreshButton" class="button">Обновить</button>
+          <button id="refreshButton" class="button">Обновить данные</button>
         </header>
 
         <div class="controls">
-          <label>
-            Поиск
+          <label class="control">
+            Поиск по имени или пути
             <input
               id="searchInput"
               type="text"
-              placeholder="Имя файла или путь"
+              placeholder="Пример: *report?.xlsx, /srv/share/*, [a-z]*.log"
               autocomplete="off"
             />
+            <small class="hint">
+              Поддерживаются маски: <code>*</code>, <code>?</code>, <code>[abc]</code>,
+              <code>[!abc]</code>
+            </small>
           </label>
-          <label>
+          <label class="control">
             Расширение
-            <input id="extensionInput" type="text" placeholder=".log, txt, pdf" autocomplete="off" />
+            <input
+              id="extensionInput"
+              type="text"
+              placeholder=".log, txt, *.pdf, *.doc?;*.xlsx"
+              autocomplete="off"
+            />
+            <small class="hint">Можно указывать несколько масок через запятую или <code>;</code>.</small>
           </label>
         </div>
 
@@ -41,7 +54,7 @@
             <thead>
               <tr>
                 <th>Имя файла</th>
-                <th>Путь</th>
+                <th>Путь на сервере</th>
                 <th>Пользователь</th>
                 <th>PID</th>
                 <th>Открыт</th>
