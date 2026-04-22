@@ -1,4 +1,5 @@
 const searchInput = document.getElementById("searchInput");
+const filesOnlyInput = document.getElementById("filesOnlyInput");
 const refreshButton = document.getElementById("refreshButton");
 const filesBody = document.getElementById("filesBody");
 const statusLine = document.getElementById("status");
@@ -93,6 +94,29 @@ function toDisplayName(filename, filepath) {
   return rawFilename || rawFilepath || "(без имени)";
 }
 
+function isLikelyDirectory(file) {
+  const displayName = String(file?.displayName ?? "").trim();
+  const filename = String(file?.filename ?? "").trim();
+  const filepath = String(file?.filepath ?? "").trim();
+
+  if (displayName === "." || displayName === "..") {
+    return true;
+  }
+  if (filename === "." || filename === "..") {
+    return true;
+  }
+  if (/[\\/]$/.test(filename) || /[\\/]$/.test(filepath)) {
+    return true;
+  }
+
+  const filepathLeaf = getLeafName(filepath);
+  if (filepathLeaf === "." || filepathLeaf === "..") {
+    return true;
+  }
+
+  return false;
+}
+
 function prepareFiles(rawFiles) {
   return rawFiles.map((rawFile) => {
     const filename = String(rawFile?.filename ?? "");
@@ -115,10 +139,11 @@ function prepareFiles(rawFiles) {
   });
 }
 
-function buildStatusText({ totalAll, totalFiltered, from, to }) {
+function buildStatusText({ totalAll, totalFiltered, from, to, filesOnlyEnabled }) {
   const rangeText = totalFiltered > 0 ? `${from}-${to}` : "0";
   const syncText = state.syncedAt ? ` Обновлено: ${state.syncedAt.toLocaleTimeString("ru-RU")}.` : "";
-  return `Показано ${rangeText} из ${totalFiltered} (всего ${totalAll}) открытых файлов.${syncText}`;
+  const modeText = filesOnlyEnabled ? " Режим: только файлы." : "";
+  return `Показано ${rangeText} из ${totalFiltered} (всего ${totalAll}) открытых файлов.${syncText}${modeText}`;
 }
 
 function buildRow(file) {
@@ -168,6 +193,7 @@ function updatePagination(totalPages, totalFiltered) {
 function renderCurrentPage() {
   const totalAll = state.allFiles.length;
   const totalFiltered = state.filteredFiles.length;
+  const filesOnlyEnabled = Boolean(filesOnlyInput?.checked);
   const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
 
   state.currentPage = Math.min(Math.max(1, state.currentPage), totalPages);
@@ -184,18 +210,23 @@ function renderCurrentPage() {
       totalFiltered,
       from: totalFiltered === 0 ? 0 : startIndex + 1,
       to: endIndex,
+      filesOnlyEnabled,
     })
   );
 }
 
 function applyFilters({ resetPage = true } = {}) {
   const searchValue = searchInput.value.trim().toLowerCase();
+  const filesOnlyEnabled = Boolean(filesOnlyInput?.checked);
 
-  if (!searchValue) {
-    state.filteredFiles = state.allFiles;
-  } else {
-    state.filteredFiles = state.allFiles.filter((file) => file._searchText.includes(searchValue));
+  let filtered = state.allFiles;
+  if (searchValue) {
+    filtered = filtered.filter((file) => file._searchText.includes(searchValue));
   }
+  if (filesOnlyEnabled) {
+    filtered = filtered.filter((file) => !isLikelyDirectory(file));
+  }
+  state.filteredFiles = filtered;
 
   if (resetPage) {
     state.currentPage = 1;
@@ -290,6 +321,7 @@ async function closeConnection(pid, triggerButton) {
 }
 
 searchInput.addEventListener("input", scheduleLiveFilter);
+filesOnlyInput?.addEventListener("change", () => applyFilters({ resetPage: true }));
 refreshButton.addEventListener("click", () => refreshFiles({ forceRefresh: true }));
 
 prevPageButton.addEventListener("click", () => {
