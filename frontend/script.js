@@ -94,28 +94,6 @@ function toDisplayName(filename, filepath) {
   return rawFilename || rawFilepath || "(без имени)";
 }
 
-function getParentDirectory(filepath) {
-  const rawPath = String(filepath ?? "").trim();
-  if (!rawPath) {
-    return "-";
-  }
-
-  const normalized = rawPath.replaceAll("\\", "/").replace(/\/+$/, "");
-  if (!normalized) {
-    return "/";
-  }
-
-  const slashIndex = normalized.lastIndexOf("/");
-  if (slashIndex < 0) {
-    return "-";
-  }
-  if (slashIndex === 0) {
-    return "/";
-  }
-
-  return normalized.slice(0, slashIndex);
-}
-
 function getNameForExtensionCheck(file) {
   const filename = String(file?.filename ?? "").trim();
   const filepath = String(file?.filepath ?? "").trim();
@@ -190,7 +168,7 @@ function prepareFiles(rawFiles) {
     const filename = String(rawFile?.filename ?? "");
     const filepath = String(rawFile?.filepath ?? "");
     const displayName = toDisplayName(filename, filepath);
-    const parentDirectory = getParentDirectory(filepath);
+    const sourceName = filename.trim() || "-";
     const user = String(rawFile?.user ?? "unknown");
     const pid = String(rawFile?.pid ?? "");
     const openedAt = rawFile?.opened_at == null ? "-" : String(rawFile.opened_at);
@@ -200,7 +178,7 @@ function prepareFiles(rawFiles) {
       filename,
       filepath,
       displayName,
-      parentDirectory,
+      sourceName,
       user,
       pid,
       openedAt,
@@ -230,7 +208,7 @@ function buildRow(file) {
     <tr>
       <td class="cell-filename" title="${escapeHtml(tooltip)}">
         <div class="file-name">${escapeHtml(file.displayName)}</div>
-        <div class="file-dir">${escapeHtml(file.parentDirectory)}</div>
+        <div class="file-source">${escapeHtml(file.sourceName)}</div>
       </td>
       <td class="cell-user">${escapeHtml(file.user)}</td>
       <td class="cell-pid">${escapeHtml(file.pid)}</td>
