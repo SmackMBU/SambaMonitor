@@ -99,6 +99,13 @@ function getNameForExtensionCheck(file) {
   const filepath = String(file?.filepath ?? "").trim();
   const displayName = String(file?.displayName ?? "").trim();
 
+  // Samba directory handles are commonly reported as "." / "..".
+  // In this case we should always treat the entry as a directory,
+  // even if the folder path contains dots.
+  if (filename === "." || filename === "..") {
+    return "";
+  }
+
   if (/[\\/]$/.test(filename) || /[\\/]$/.test(filepath)) {
     return "";
   }
@@ -127,20 +134,33 @@ function hasExtension(file) {
   }
 
   const dotIndex = name.lastIndexOf(".");
-  if (dotIndex <= 0) {
-    return false;
-  }
-  if (dotIndex >= name.length - 1) {
+  if (dotIndex <= 0 || dotIndex >= name.length - 1) {
     return false;
   }
 
-  const extension = name.slice(dotIndex + 1).trim();
+  const rawSuffix = name.slice(dotIndex + 1);
+  // Names like "Информ. Ашан" are usually directories, not file extensions.
+  if (/^\s/.test(rawSuffix)) {
+    return false;
+  }
+
+  const extension = rawSuffix.trim();
   if (!extension) {
     return false;
   }
 
-  // Avoid false positives like directory names with punctuation fragments.
-  return /^[A-Za-zА-Яа-яЁё0-9][A-Za-zА-Яа-яЁё0-9_-]{0,15}$/.test(extension);
+  // Treat only typical file extensions as valid:
+  // - ASCII letters/digits only
+  // - 1..5 chars
+  // - at least one letter (so ".04" is not considered an extension)
+  if (!/^[A-Za-z0-9]{1,5}$/.test(extension)) {
+    return false;
+  }
+  if (!/[A-Za-z]/.test(extension)) {
+    return false;
+  }
+
+  return true;
 }
 
 function prepareFiles(rawFiles) {
