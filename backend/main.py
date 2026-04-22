@@ -6,8 +6,6 @@ import hmac
 import logging
 import os
 import time
-from fnmatch import translate as fnmatch_translate
-from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -37,7 +35,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 INDEX_TEMPLATE_PATH = FRONTEND_DIR / "index.html"
 CACHE_TTL_SECONDS = max(1, int(os.getenv("CACHE_TTL_SECONDS", "7")))
-WILDCARD_META_CHARS = set("*?[]")
 
 
 def _require_env(name: str) -> str:
@@ -178,7 +175,6 @@ async def get_static(asset_path: str) -> FileResponse:
 @router.get("/files")
 async def list_open_files(
     search: str | None = Query(default=None),
-    extension: str | None = Query(default=None),
     refresh: bool = Query(default=False),
 ) -> JSONResponse:
     try:
@@ -190,7 +186,7 @@ async def list_open_files(
         logger.exception("SSH command error while fetching files.")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    filtered_files = _filter_entries(files, search=search, extension=extension)
+    filtered_files = _filter_entries(files, search=search)
     return JSONResponse({"files": filtered_files, "count": len(filtered_files)})
 
 
@@ -239,26 +235,9 @@ def _filter_entries(
     entries: list[OpenFileEntry],
     *,
     search: str | None,
-    extension: str | None,
 ) -> list[OpenFileEntry]:
-    search_value = (search or "").strip()
-    extension_masks = _split_masks(extension)
-    normalized_extension_masks = [_normalize_extension_mask(mask) for mask in extension_masks]
-    extension_patterns = [
-        _compile_wildcard_pattern(mask)
-        for mask in normalized_extension_masks
-        if mask
-    ]
-
-    search_masks = _split_masks(search)
-    search_wildcard_patterns = [
-        _compile_wildcard_pattern(mask)
-        for mask in search_masks
-        if _contains_wildcards(mask)
-    ]
-    search_substrings = [mask.casefold() for mask in search_masks if not _contains_wildcards(mask)]
-
-    if not search_value and not extension_patterns:
+    search_value = (search or "").strip().casefold()
+    if not search_value:
         return list(entries)
 
     filtered: list[OpenFileEntry] = []
@@ -266,49 +245,10 @@ def _filter_entries(
         filename = entry["filename"]
         filepath = entry["filepath"]
         display_name = _to_display_name(filename, filepath)
-
-        if search_value and (search_wildcard_patterns or search_substrings):
-            searchable = f"{display_name} {filename} {filepath}".casefold()
-            wildcard_match = any(
-                pattern.fullmatch(display_name)
-                or pattern.fullmatch(filename)
-                or pattern.fullmatch(filepath)
-                for pattern in search_wildcard_patterns
-            )
-            substring_match = any(term in searchable for term in search_substrings)
-            if not wildcard_match and not substring_match:
-                continue
-
-        if extension_patterns:
-            if not any(pattern.fullmatch(display_name) for pattern in extension_patterns):
-                continue
-
-        filtered.append(entry)
+        searchable = f"{display_name} {filename} {filepath}".casefold()
+        if search_value in searchable:
+            filtered.append(entry)
     return filtered
-
-
-def _split_masks(value: str | None) -> list[str]:
-    if not value:
-        return []
-    normalized = value.strip()
-    if not normalized:
-        return []
-    return [part.strip() for part in re.split(r"[;,]", normalized) if part.strip()]
-
-
-def _contains_wildcards(value: str) -> bool:
-    return any(char in value for char in WILDCARD_META_CHARS)
-
-
-def _normalize_extension_mask(mask: str) -> str:
-    normalized = mask.strip()
-    if not normalized:
-        return ""
-    if _contains_wildcards(normalized):
-        return normalized
-    if normalized.startswith("."):
-        return f"*{normalized}"
-    return f"*.{normalized}"
 
 
 def _to_display_name(filename: str, filepath: str) -> str:
@@ -337,8 +277,3 @@ def _leaf_name(value: str) -> str:
     if not parts:
         return normalized
     return parts[-1]
-
-
-@lru_cache(maxsize=256)
-def _compile_wildcard_pattern(mask: str) -> re.Pattern[str]:
-    return re.compile(fnmatch_translate(mask), flags=re.IGNORECASE)

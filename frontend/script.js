@@ -1,5 +1,4 @@
 const searchInput = document.getElementById("searchInput");
-const extensionInput = document.getElementById("extensionInput");
 const refreshButton = document.getElementById("refreshButton");
 const filesBody = document.getElementById("filesBody");
 const statusLine = document.getElementById("status");
@@ -11,13 +10,11 @@ const prevPageButton = document.getElementById("prevPageButton");
 const nextPageButton = document.getElementById("nextPageButton");
 
 const PAGE_SIZE = 40;
-const MAX_MASKS = 32;
 
 let debounceTimer = null;
 let activeFetchController = null;
 
 const APP_ROOT_URI = normalizeRootUri(rootUriMeta?.content ?? "");
-const wildcardRegexCache = new Map();
 const state = {
   allFiles: [],
   filteredFiles: [],
@@ -62,102 +59,12 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function splitMasks(value) {
-  const normalized = String(value ?? "").trim();
-  if (!normalized) {
-    return [];
-  }
-  return normalized
-    .split(/[;,]/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .slice(0, MAX_MASKS);
-}
-
-function containsWildcard(mask) {
-  return /[*?\[\]]/.test(mask);
-}
-
-function escapeRegexFragment(value) {
-  return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
-}
-
-function getWildcardRegex(mask) {
-  if (wildcardRegexCache.has(mask)) {
-    return wildcardRegexCache.get(mask);
-  }
-
-  let regex = "^";
-  for (let i = 0; i < mask.length; i += 1) {
-    const char = mask[i];
-    if (char === "*") {
-      regex += ".*";
-      continue;
-    }
-    if (char === "?") {
-      regex += ".";
-      continue;
-    }
-    if (char === "[") {
-      const end = mask.indexOf("]", i + 1);
-      if (end === -1) {
-        regex += "\\[";
-        continue;
-      }
-
-      let charClass = mask.slice(i + 1, end);
-      if (!charClass) {
-        regex += "\\[\\]";
-        i = end;
-        continue;
-      }
-
-      let prefix = "";
-      if (charClass[0] === "!") {
-        prefix = "^";
-        charClass = charClass.slice(1);
-      } else if (charClass[0] === "^") {
-        prefix = "\\^";
-        charClass = charClass.slice(1);
-      }
-
-      charClass = charClass.replace(/\\/g, "\\\\").replace(/]/g, "\\]");
-      regex += `[${prefix}${charClass}]`;
-      i = end;
-      continue;
-    }
-    regex += escapeRegexFragment(char);
-  }
-  regex += "$";
-
-  const compiled = new RegExp(regex, "i");
-  wildcardRegexCache.set(mask, compiled);
-  if (wildcardRegexCache.size > 512) {
-    const first = wildcardRegexCache.keys().next().value;
-    wildcardRegexCache.delete(first);
-  }
-  return compiled;
-}
-
-function normalizeExtensionMask(mask) {
-  const normalized = mask.trim();
-  if (!normalized) {
-    return "";
-  }
-  if (containsWildcard(normalized)) {
-    return normalized;
-  }
-  if (normalized.startsWith(".")) {
-    return `*${normalized}`;
-  }
-  return `*.${normalized}`;
-}
-
 function getLeafName(value) {
   const normalized = String(value ?? "").trim().replace(/[\\/]+$/, "");
   if (!normalized) {
     return "";
   }
+
   const parts = normalized.split(/[\\/]+/).filter(Boolean);
   if (!parts.length) {
     return normalized;
@@ -184,42 +91,6 @@ function toDisplayName(filename, filepath) {
   }
 
   return rawFilename || rawFilepath || "(без имени)";
-}
-
-function createSearchMatcher(rawValue) {
-  const masks = splitMasks(rawValue);
-  if (!masks.length) {
-    return () => true;
-  }
-
-  const wildcardRegexList = masks.filter(containsWildcard).map(getWildcardRegex);
-  const loweredTerms = masks
-    .filter((mask) => !containsWildcard(mask))
-    .map((mask) => mask.toLowerCase());
-
-  return (file) => {
-    const wildcardMatch = wildcardRegexList.some(
-      (regex) =>
-        regex.test(file.displayName) ||
-        regex.test(file.filename) ||
-        regex.test(file.filepath)
-    );
-    const substringMatch = loweredTerms.some((term) => file._searchText.includes(term));
-    return wildcardMatch || substringMatch;
-  };
-}
-
-function createExtensionMatcher(rawValue) {
-  const masks = splitMasks(rawValue)
-    .map(normalizeExtensionMask)
-    .filter(Boolean);
-
-  if (!masks.length) {
-    return () => true;
-  }
-
-  const regexList = masks.map(getWildcardRegex);
-  return (file) => regexList.some((regex) => regex.test(file.displayName));
 }
 
 function prepareFiles(rawFiles) {
@@ -318,10 +189,14 @@ function renderCurrentPage() {
 }
 
 function applyFilters({ resetPage = true } = {}) {
-  const searchMatcher = createSearchMatcher(searchInput.value);
-  const extensionMatcher = createExtensionMatcher(extensionInput.value);
+  const searchValue = searchInput.value.trim().toLowerCase();
 
-  state.filteredFiles = state.allFiles.filter((file) => searchMatcher(file) && extensionMatcher(file));
+  if (!searchValue) {
+    state.filteredFiles = state.allFiles;
+  } else {
+    state.filteredFiles = state.allFiles.filter((file) => file._searchText.includes(searchValue));
+  }
+
   if (resetPage) {
     state.currentPage = 1;
   }
@@ -415,7 +290,6 @@ async function closeConnection(pid, triggerButton) {
 }
 
 searchInput.addEventListener("input", scheduleLiveFilter);
-extensionInput.addEventListener("input", scheduleLiveFilter);
 refreshButton.addEventListener("click", () => refreshFiles({ forceRefresh: true }));
 
 prevPageButton.addEventListener("click", () => {

@@ -14,13 +14,12 @@ Web application for monitoring open Samba (SMB) files on a remote Linux server.
   - `pid`
   - `user`
   - `opened_at` (when available)
-- Search supports wildcard masks (`*`, `?`, `[abc]`, `[!abc]`) in both UI and API query params.
 - Safely closes Samba connections via `POST /close/{pid}` using:
   - `sudo smbcontrol <PID> close-share <sharename>`
   - share name is resolved automatically from `sudo smbstatus --json` (`tcons.service`)
 - Protects access with HTTP Basic Auth (`APP_USERNAME` / `APP_PASSWORD`).
 - Caches file list for `CACHE_TTL_SECONDS` (default: 7).
-- Includes optimized frontend rendering for large lists, live local filtering, extension masks, refresh button, and confirmation before closing a connection.
+- Includes optimized frontend rendering for large lists, live local text filtering, refresh button, and confirmation before closing a connection.
 
 ## Project Structure
 
@@ -107,14 +106,13 @@ smbmonitor ALL=(ALL) NOPASSWD: /usr/bin/smbstatus, /usr/bin/smbcontrol
 
 Query params:
 
-- `search` - search by file name/path. Supports wildcard masks (`*`, `?`, `[abc]`, `[!abc]`) and multiple masks separated by `,` or `;`.
-- `extension` - extension filter (`txt`, `.txt`, `*.log`, `*.doc?`; multiple masks separated by `,` or `;`).
+- `search` - plain text search by file name/path (substring match, case-insensitive).
 - `refresh` - `true` to bypass cache.
 
 Example:
 
 ```bash
-curl -u admin:super_secret "http://localhost:8000/smbmonitor/files?search=report&extension=.xlsx"
+curl -u admin:super_secret "http://localhost:8000/smbmonitor/files?search=report"
 ```
 
 ### `POST /close/{pid}`
