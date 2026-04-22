@@ -153,6 +153,39 @@ function normalizeExtensionMask(mask) {
   return `*.${normalized}`;
 }
 
+function getLeafName(value) {
+  const normalized = String(value ?? "").trim().replace(/[\\/]+$/, "");
+  if (!normalized) {
+    return "";
+  }
+  const parts = normalized.split(/[\\/]+/).filter(Boolean);
+  if (!parts.length) {
+    return normalized;
+  }
+  return parts[parts.length - 1];
+}
+
+function toDisplayName(filename, filepath) {
+  const rawFilename = String(filename ?? "").trim();
+  const rawFilepath = String(filepath ?? "").trim();
+
+  if (rawFilename && rawFilename !== "." && rawFilename !== ".." && !/[\\/]/.test(rawFilename)) {
+    return rawFilename;
+  }
+
+  const filenameLeaf = getLeafName(rawFilename);
+  if (filenameLeaf && filenameLeaf !== "." && filenameLeaf !== "..") {
+    return filenameLeaf;
+  }
+
+  const filepathLeaf = getLeafName(rawFilepath);
+  if (filepathLeaf && filepathLeaf !== "." && filepathLeaf !== "..") {
+    return filepathLeaf;
+  }
+
+  return rawFilename || rawFilepath || "(без имени)";
+}
+
 function createSearchMatcher(rawValue) {
   const masks = splitMasks(rawValue);
   if (!masks.length) {
@@ -166,7 +199,10 @@ function createSearchMatcher(rawValue) {
 
   return (file) => {
     const wildcardMatch = wildcardRegexList.some(
-      (regex) => regex.test(file.filename) || regex.test(file.filepath)
+      (regex) =>
+        regex.test(file.displayName) ||
+        regex.test(file.filename) ||
+        regex.test(file.filepath)
     );
     const substringMatch = loweredTerms.some((term) => file._searchText.includes(term));
     return wildcardMatch || substringMatch;
@@ -183,22 +219,27 @@ function createExtensionMatcher(rawValue) {
   }
 
   const regexList = masks.map(getWildcardRegex);
-  return (file) => regexList.some((regex) => regex.test(file.filename));
+  return (file) => regexList.some((regex) => regex.test(file.displayName));
 }
 
 function prepareFiles(rawFiles) {
   return rawFiles.map((rawFile) => {
     const filename = String(rawFile?.filename ?? "");
     const filepath = String(rawFile?.filepath ?? "");
+    const displayName = toDisplayName(filename, filepath);
     const user = String(rawFile?.user ?? "unknown");
     const pid = String(rawFile?.pid ?? "");
+    const openedAt = rawFile?.opened_at == null ? "-" : String(rawFile.opened_at);
+
     return {
       ...rawFile,
       filename,
       filepath,
+      displayName,
       user,
       pid,
-      _searchText: `${filename} ${filepath} ${user} ${pid}`.toLowerCase(),
+      openedAt,
+      _searchText: `${displayName} ${filename} ${filepath} ${user} ${pid}`.toLowerCase(),
     };
   });
 }
@@ -210,13 +251,21 @@ function buildStatusText({ totalAll, totalFiltered, from, to }) {
 }
 
 function buildRow(file) {
-  const openedAt = file.opened_at ?? "-";
+  const details = [];
+  if (file.filename && file.filename !== file.displayName) {
+    details.push(`Исходное имя: ${file.filename}`);
+  }
+  if (file.filepath) {
+    details.push(`Путь: ${file.filepath}`);
+  }
+  const tooltip = details.join("\n") || file.displayName;
+
   return `
     <tr>
-      <td class="cell-filename" title="${escapeHtml(file.filepath)}">${escapeHtml(file.filename)}</td>
+      <td class="cell-filename" title="${escapeHtml(tooltip)}">${escapeHtml(file.displayName)}</td>
       <td class="cell-user">${escapeHtml(file.user)}</td>
       <td class="cell-pid">${escapeHtml(file.pid)}</td>
-      <td class="cell-opened">${escapeHtml(openedAt)}</td>
+      <td class="cell-opened">${escapeHtml(file.openedAt)}</td>
       <td class="cell-action">
         <button class="close-button" data-pid="${escapeHtml(file.pid)}" type="button">Закрыть</button>
       </td>

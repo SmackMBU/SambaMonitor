@@ -265,11 +265,14 @@ def _filter_entries(
     for entry in entries:
         filename = entry["filename"]
         filepath = entry["filepath"]
+        display_name = _to_display_name(filename, filepath)
 
         if search_value and (search_wildcard_patterns or search_substrings):
-            searchable = f"{filename} {filepath}".casefold()
+            searchable = f"{display_name} {filename} {filepath}".casefold()
             wildcard_match = any(
-                pattern.fullmatch(filename) or pattern.fullmatch(filepath)
+                pattern.fullmatch(display_name)
+                or pattern.fullmatch(filename)
+                or pattern.fullmatch(filepath)
                 for pattern in search_wildcard_patterns
             )
             substring_match = any(term in searchable for term in search_substrings)
@@ -277,7 +280,7 @@ def _filter_entries(
                 continue
 
         if extension_patterns:
-            if not any(pattern.fullmatch(filename) for pattern in extension_patterns):
+            if not any(pattern.fullmatch(display_name) for pattern in extension_patterns):
                 continue
 
         filtered.append(entry)
@@ -306,6 +309,34 @@ def _normalize_extension_mask(mask: str) -> str:
     if normalized.startswith("."):
         return f"*{normalized}"
     return f"*.{normalized}"
+
+
+def _to_display_name(filename: str, filepath: str) -> str:
+    raw_filename = str(filename).strip()
+    raw_filepath = str(filepath).strip()
+
+    if raw_filename and raw_filename not in {".", ".."} and not re.search(r"[\\/]", raw_filename):
+        return raw_filename
+
+    filename_leaf = _leaf_name(raw_filename)
+    if filename_leaf and filename_leaf not in {".", ".."}:
+        return filename_leaf
+
+    filepath_leaf = _leaf_name(raw_filepath)
+    if filepath_leaf and filepath_leaf not in {".", ".."}:
+        return filepath_leaf
+
+    return raw_filename or raw_filepath or ""
+
+
+def _leaf_name(value: str) -> str:
+    normalized = value.strip().rstrip("/\\")
+    if not normalized:
+        return ""
+    parts = [part for part in re.split(r"[\\/]+", normalized) if part]
+    if not parts:
+        return normalized
+    return parts[-1]
 
 
 @lru_cache(maxsize=256)
