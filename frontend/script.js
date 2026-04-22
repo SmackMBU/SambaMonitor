@@ -94,27 +94,17 @@ function toDisplayName(filename, filepath) {
   return rawFilename || rawFilepath || "(без имени)";
 }
 
-function isLikelyDirectory(file) {
-  const displayName = String(file?.displayName ?? "").trim();
-  const filename = String(file?.filename ?? "").trim();
-  const filepath = String(file?.filepath ?? "").trim();
-
-  if (displayName === "." || displayName === "..") {
-    return true;
-  }
-  if (filename === "." || filename === "..") {
-    return true;
-  }
-  if (/[\\/]$/.test(filename) || /[\\/]$/.test(filepath)) {
-    return true;
+function hasExtension(name) {
+  const value = String(name ?? "").trim();
+  if (!value) {
+    return false;
   }
 
-  const filepathLeaf = getLeafName(filepath);
-  if (filepathLeaf === "." || filepathLeaf === "..") {
-    return true;
+  const dotIndex = value.lastIndexOf(".");
+  if (dotIndex <= 0) {
+    return false;
   }
-
-  return false;
+  return dotIndex < value.length - 1;
 }
 
 function prepareFiles(rawFiles) {
@@ -139,10 +129,10 @@ function prepareFiles(rawFiles) {
   });
 }
 
-function buildStatusText({ totalAll, totalFiltered, from, to, filesOnlyEnabled }) {
+function buildStatusText({ totalAll, totalFiltered, from, to, hideWithoutExtensionEnabled }) {
   const rangeText = totalFiltered > 0 ? `${from}-${to}` : "0";
   const syncText = state.syncedAt ? ` Обновлено: ${state.syncedAt.toLocaleTimeString("ru-RU")}.` : "";
-  const modeText = filesOnlyEnabled ? " Режим: только файлы." : "";
+  const modeText = hideWithoutExtensionEnabled ? " Режим: скрывать без расширения." : "";
   return `Показано ${rangeText} из ${totalFiltered} (всего ${totalAll}) открытых файлов.${syncText}${modeText}`;
 }
 
@@ -193,7 +183,7 @@ function updatePagination(totalPages, totalFiltered) {
 function renderCurrentPage() {
   const totalAll = state.allFiles.length;
   const totalFiltered = state.filteredFiles.length;
-  const filesOnlyEnabled = Boolean(filesOnlyInput?.checked);
+  const hideWithoutExtensionEnabled = Boolean(filesOnlyInput?.checked);
   const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
 
   state.currentPage = Math.min(Math.max(1, state.currentPage), totalPages);
@@ -210,21 +200,21 @@ function renderCurrentPage() {
       totalFiltered,
       from: totalFiltered === 0 ? 0 : startIndex + 1,
       to: endIndex,
-      filesOnlyEnabled,
+      hideWithoutExtensionEnabled,
     })
   );
 }
 
 function applyFilters({ resetPage = true } = {}) {
   const searchValue = searchInput.value.trim().toLowerCase();
-  const filesOnlyEnabled = Boolean(filesOnlyInput?.checked);
+  const hideWithoutExtensionEnabled = Boolean(filesOnlyInput?.checked);
 
   let filtered = state.allFiles;
   if (searchValue) {
     filtered = filtered.filter((file) => file._searchText.includes(searchValue));
   }
-  if (filesOnlyEnabled) {
-    filtered = filtered.filter((file) => !isLikelyDirectory(file));
+  if (hideWithoutExtensionEnabled) {
+    filtered = filtered.filter((file) => hasExtension(file.displayName));
   }
   state.filteredFiles = filtered;
 
