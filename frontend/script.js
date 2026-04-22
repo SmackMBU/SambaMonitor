@@ -94,17 +94,53 @@ function toDisplayName(filename, filepath) {
   return rawFilename || rawFilepath || "(без имени)";
 }
 
-function hasExtension(name) {
-  const value = String(name ?? "").trim();
-  if (!value) {
+function getNameForExtensionCheck(file) {
+  const filename = String(file?.filename ?? "").trim();
+  const filepath = String(file?.filepath ?? "").trim();
+  const displayName = String(file?.displayName ?? "").trim();
+
+  if (/[\\/]$/.test(filename) || /[\\/]$/.test(filepath)) {
+    return "";
+  }
+
+  const filenameLeaf = getLeafName(filename);
+  if (filenameLeaf && filenameLeaf !== "." && filenameLeaf !== "..") {
+    return filenameLeaf;
+  }
+
+  const filepathLeaf = getLeafName(filepath);
+  if (filepathLeaf && filepathLeaf !== "." && filepathLeaf !== "..") {
+    return filepathLeaf;
+  }
+
+  if (displayName && displayName !== "." && displayName !== "..") {
+    return displayName;
+  }
+
+  return "";
+}
+
+function hasExtension(file) {
+  const name = getNameForExtensionCheck(file);
+  if (!name || /[\\/]/.test(name)) {
     return false;
   }
 
-  const dotIndex = value.lastIndexOf(".");
+  const dotIndex = name.lastIndexOf(".");
   if (dotIndex <= 0) {
     return false;
   }
-  return dotIndex < value.length - 1;
+  if (dotIndex >= name.length - 1) {
+    return false;
+  }
+
+  const extension = name.slice(dotIndex + 1).trim();
+  if (!extension) {
+    return false;
+  }
+
+  // Avoid false positives like directory names with punctuation fragments.
+  return /^[A-Za-zА-Яа-яЁё0-9][A-Za-zА-Яа-яЁё0-9_-]{0,15}$/.test(extension);
 }
 
 function prepareFiles(rawFiles) {
@@ -214,7 +250,7 @@ function applyFilters({ resetPage = true } = {}) {
     filtered = filtered.filter((file) => file._searchText.includes(searchValue));
   }
   if (hideWithoutExtensionEnabled) {
-    filtered = filtered.filter((file) => hasExtension(file.displayName));
+    filtered = filtered.filter((file) => hasExtension(file));
   }
   state.filteredFiles = filtered;
 
